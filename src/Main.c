@@ -6,6 +6,12 @@
 #include "/home/codeleaded/System/Static/Library/Lib3D_Mathlib.h"
 #include "/home/codeleaded/System/Static/Library/Lib3D_MeshFast.h"
 
+typedef struct MCube3 {
+    Cube3 cube;
+    Vec3 o;
+    Vec3 v;
+    float l;
+} MCube3;
 
 World3D world;
 Vector cubes;
@@ -28,30 +34,61 @@ void ReloadCubes(){
             const Double x = Yaml_Branch_GetDouble(&yl,c_b,"x");
             const Double y = Yaml_Branch_GetDouble(&yl,c_b,"y");
             const Double z = Yaml_Branch_GetDouble(&yl,c_b,"z");
+
             const Double w = Yaml_Branch_GetDouble(&yl,c_b,"w");
             const Double h = Yaml_Branch_GetDouble(&yl,c_b,"h");
             const Double d = Yaml_Branch_GetDouble(&yl,c_b,"d");
-            Vector_Push(&cubes,(Cube3[]){{
-                .p = {
+
+            const Double l = Yaml_Branch_GetDouble(&yl,c_b,"l");
+
+            const Double vx = Yaml_Branch_GetDouble(&yl,c_b,"vx");
+            const Double vy = Yaml_Branch_GetDouble(&yl,c_b,"vy");
+            const Double vz = Yaml_Branch_GetDouble(&yl,c_b,"vz");
+
+            Vector_Push(&cubes,(MCube3[]){{
+                .cube = {
+                    {
+                        .x = x,
+                        .y = y,
+                        .z = z
+                    },
+                    {
+                        .x = w,
+                        .y = h,
+                        .z = d
+                    }
+                },
+                .o = {
                     .x = x,
                     .y = y,
                     .z = z
                 },
-                .d = {
-                    .x = w,
-                    .y = h,
-                    .z = d
-                }
+                .v = {
+                    .x = vx,
+                    .y = vy,
+                    .z = vz
+                },
+                .l = l
             }});
         }
-        Vector_Clear(&world.trisIn);
-        for(int i = 0;i<cubes.size;i++){
-            Cube3* c = (Cube3*)Vector_Get(&cubes,i);
-	    	Lib3D_Cube(&world.trisIn,(Vec3D){ c->p.x,c->p.y,c->p.z,1.0f },(Vec3D){ c->d.x,c->d.y,c->d.z,1.0f },WHITE,WHITE);
-	    }
-	    Mesh_Shade(&world.trisIn,(Vec3D){ -0.5f,0.4f,-0.6f,1.0f });
     }
     Yaml_Free(&yl);
+}
+void ReloadMesh(){
+    Vector_Clear(&world.trisIn);
+
+    for(int i = 0;i<cubes.size;i++){
+        MCube3* c = (MCube3*)Vector_Get(&cubes,i);
+		Lib3D_Cube(
+            &world.trisIn,
+            (Vec3D){ c->cube.p.x,c->cube.p.y,c->cube.p.z,1.0f },
+            (Vec3D){ c->cube.d.x,c->cube.d.y,c->cube.d.z,1.0f },
+            WHITE,
+            WHITE
+        );
+	}
+
+	Mesh_Shade(&world.trisIn,(Vec3D){ -0.5f,0.4f,-0.6f,1.0f });
 }
 void Menu_Set(int m){
 	if(Menu==0 && m==1){
@@ -80,9 +117,10 @@ void Setup(AlxWindow* w){
 		Matrix_MakeProjection(cam.fov,(float)GetHeight() / (float)GetWidth(),0.1f,1000.0f)
 	);
 	world.normal = WORLD3D_NORMAL_CAP;
-    cubes = Vector_New(sizeof(Cube3));
+    cubes = Vector_New(sizeof(MCube3));
 
     ReloadCubes();
+    ReloadMesh();
 }
 void Update(AlxWindow* w){
     if(Menu==1){
@@ -96,6 +134,7 @@ void Update(AlxWindow* w){
 
     if(Stroke(ALX_KEY_ENTER).PRESSED){
         ReloadCubes();
+        ReloadMesh();
         cam.p = (Vec3D){ 0.5f,2.0f,0.5f,1.0f };
         cam.a = (Vec3D){ 0.0f,0.0f,0.0f,1.0f };
     }
@@ -112,15 +151,21 @@ void Update(AlxWindow* w){
     if(Stroke(ALX_KEY_SPACE).DOWN && jump)
 		vel = 2.0f;
 	//if(Stroke(ALX_KEY_F).DOWN)
-	//	cam.p.y -= 1.0f * w->ElapsedTime;
+	//	vel -= 2.0f;
 
     vel += -5.0f * w->ElapsedTime;
     cam.p.y += vel * w->ElapsedTime;
     jump = 0;
 
     for(int i = 0;i<cubes.size;i++){
-        Cube3* c = (Cube3*)Vector_Get(&cubes,i);
-		
+        MCube3* c = (MCube3*)Vector_Get(&cubes,i);
+        
+        const Vec3 dist = Vec3_Sub(c->cube.p,c->o);
+        const float len = Vec3_Mag(dist);
+        if(len >= c->l) c->v = Vec3_Neg(c->v);
+
+        c->cube.p = Vec3_Add(c->cube.p,Vec3_Mulf(c->v,w->ElapsedTime));
+
         Cube3 pc = {
             .p = {
                 .x = cam.p.x - 0.05f,
@@ -133,18 +178,25 @@ void Update(AlxWindow* w){
                 .z = 0.1f,
             }
         };
-        const Side s = Resolve_Cube3_Cube3(&pc,*c);
+
+        const Side s = Resolve_Cube3_Cube3(&pc,c->cube);
         if(s == SIDE_TOP) jump = 1;
         if(s == SIDE_TOP || s == SIDE_BOTTOM) vel = 0.0f;
 
         cam.p.x = pc.p.x + 0.05f;
         cam.p.y = pc.p.y + 0.4f;
         cam.p.z = pc.p.z + 0.05f;
+
+        if(s != SIDE_NONE){
+            cam.p = Vec3D_Add(cam.p,Vec3D_Mul((Vec3D){ c->v.x,c->v.y,c->v.z },w->ElapsedTime));
+        }
 	}
 
 	World3D_Set_Model(&world,Matrix_MakeWorld((Vec3D){ 0.0f,0.0f,0.0f,1.0f },(Vec3D){ 0.0f,0.0f,0.0f,1.0f }));
 	World3D_Set_View(&world,Matrix_MakePerspektive(cam.p,cam.up,cam.a));
 	World3D_Set_Proj(&world,Matrix_MakeProjection(cam.fov,(float)GetHeight() / (float)GetWidth(),0.1f,1000.0f));
+
+    ReloadMesh();
 
     Clear(LIGHT_BLUE);
 
