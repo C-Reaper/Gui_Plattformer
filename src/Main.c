@@ -129,14 +129,16 @@ void Update(AlxWindow* w){
 		SetMouse((Vec2){ GetWidth() / 2,GetHeight() / 2 });
 	}
     
-    if(Stroke(ALX_KEY_ESC).PRESSED)
+    if(Stroke(ALX_KEY_TAB).PRESSED)
 		Menu_Set(!Menu);
 
     if(Stroke(ALX_KEY_ENTER).PRESSED){
         ReloadCubes();
         ReloadMesh();
+        
         cam.p = (Vec3D){ 0.5f,2.0f,0.5f,1.0f };
         cam.a = (Vec3D){ 0.0f,0.0f,0.0f,1.0f };
+        Camera_Update(&cam);
     }
 
     if(Stroke(ALX_KEY_W).DOWN)
