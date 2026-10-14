@@ -137,6 +137,7 @@ void Update(AlxWindow* w){
         ReloadMesh();
         
         cam.p = (Vec3D){ 0.5f,2.0f,0.5f,1.0f };
+        cam.v = (Vec3D){ 0.0f,0.0f,0.0f,1.0f };
         cam.a = (Vec3D){ 0.0f,0.0f,0.0f,1.0f };
         Camera_Update(&cam);
     }
